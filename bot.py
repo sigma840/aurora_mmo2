@@ -1,35 +1,17 @@
 import os
-from telegram import Update
-from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, ContextTypes, filters
+from telegram.ext import ApplicationBuilder, CommandHandler
 
-print("🚀 BOT A ARRANCAR...")
+print("START BOT")
 
 TOKEN = os.getenv("TOKEN")
+print("TOKEN:", TOKEN)
 
-print("🔑 TOKEN =", TOKEN)
-
-# ❌ NÃO importar game ainda (teste)
-# import game
-
-
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("🌆 BOT ONLINE (DEBUG MODE)")
-
-async def cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("CMD FUNCIONA (sem game ainda)")
-
-async def handle(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("BOT RESPONDE OK (sem game ainda)")
-
-
-print("⚙️ A criar aplicação...")
+async def start(update, context):
+    await update.message.reply_text("BOT OK")
 
 app = ApplicationBuilder().token(TOKEN).build()
 
 app.add_handler(CommandHandler("start", start))
-app.add_handler(CommandHandler("cmd", cmd))
-app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle))
 
-print("▶️ A INICIAR BOT...")
-
+print("RUNNING")
 app.run_polling()
