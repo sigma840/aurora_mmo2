@@ -1,31 +1,40 @@
 import random
 import json
+import os
 
 FILE = "players.json"
 
-PARTIES = {}        # gangs
-TERRITORIES = {     # mapa de controlo
+# -------------------------
+# STATE (GLOBAL SAFE)
+# -------------------------
+
+PARTIES = {}
+TERRITORIES = {
     "centro": None,
     "bairros": None,
     "industrial": None,
     "armazens": None
 }
 
-
 # -------------------------
-# DATA
+# DATA HANDLING
 # -------------------------
 
 def load():
     try:
+        if not os.path.exists(FILE):
+            return {}
         with open(FILE, "r") as f:
             return json.load(f)
     except:
         return {}
 
 def save(data):
-    with open(FILE, "w") as f:
-        json.dump(data, f, indent=2)
+    try:
+        with open(FILE, "w") as f:
+            json.dump(data, f, indent=2)
+    except:
+        pass
 
 
 def init(uid, data):
@@ -36,32 +45,18 @@ def init(uid, data):
             "actions": 3,
             "day": 1,
             "luck": 0,
-            "rep": 0,
-            "crime": 0,
-            "scooter": False,
-            "location": "centro",
-            "party": None
+            "scooter": False
         }
-
 
 # -------------------------
 # MAPA
 # -------------------------
-
-MAPA = {
-    "centro": ["bairros"],
-    "bairros": ["centro", "industrial"],
-    "industrial": ["bairros", "armazens"],
-    "armazens": ["industrial"]
-}
-
 
 def mapa():
     txt = "🗺️ TERRITÓRIOS:\n\n"
     for t, owner in TERRITORIES.items():
         txt += f"{t} → {owner or 'neutro'}\n"
     return txt
-
 
 # -------------------------
 # RANKINGS
@@ -76,57 +71,56 @@ def rankings(data):
         txt += f"{i+1}. {p[0]} - {p[1]}€\n"
     return txt
 
-
 # -------------------------
 # EXPLORAR
 # -------------------------
 
 def explore(p):
     p["actions"] -= 1
+
     events = [
         ("Encontraste dinheiro", random.randint(10, 50)),
         ("Dia calmo", 0),
         ("Roubo falhado", -20),
-        ("Ajuda de gang local", 30)
+        ("Ajuda de desconhecido", 25)
     ]
+
     t, m = random.choice(events)
     p["money"] += m
     return f"🧍 {t} ({m}€)"
-
 
 # -------------------------
 # GAMBLING
 # -------------------------
 
 def gamble(p, n):
-    roll = random.randint(1, 10)
     p["actions"] -= 1
+    roll = random.randint(1, 10)
 
     if roll == n:
-        win = 120 + p["luck"] * 10
+        win = 100 + p["luck"] * 10
         p["money"] += win
         return f"🎰 GANHASTE +{win}€"
     else:
-        p["money"] -= 25
-        return f"💸 Perdeu ({roll})"
-
+        p["money"] -= 20
+        return f"💸 Perdeste ({roll})"
 
 # -------------------------
-# TRABALHO
+# WORK
 # -------------------------
 
 def work(p, t):
-    bonus = 1.5 if p["scooter"] and t == "entregas" else 1
+    p["actions"] -= 1
 
     if t == "entregas":
-        gain = int(random.randint(60, 110) * bonus)
+        gain = random.randint(60, 120)
+        if p.get("scooter"):
+            gain += 30
     else:
         gain = random.randint(70, 130)
 
     p["money"] += gain
-    p["actions"] -= 1
-    return f"💼 {t}: +{gain}€"
-
+    return f"💼 Trabalho ({t}): +{gain}€"
 
 # -------------------------
 # SHOP
@@ -138,40 +132,40 @@ def shop(p, item):
             p["money"] -= 250
             p["scooter"] = True
             return "🛵 Scooter comprada"
+        return "❌ sem dinheiro"
+
     if item == "sorte":
         if p["money"] >= 300:
             p["money"] -= 300
             p["luck"] += 1
-            return "🍀 Sorte +1"
+            return "🍀 Sorte aumentada"
+        return "❌ sem dinheiro"
+
     return "❌ item inválido"
 
-
 # -------------------------
-# GANGS (PARTIES)
+# GANGS
 # -------------------------
 
 def create_party(uid, name):
-    if uid in PARTIES:
-        return "❌ já tens gang"
+    if uid in [m for g in PARTIES.values() for m in g["members"]]:
+        return "❌ já estás numa gang"
 
     PARTIES[name] = {
         "leader": uid,
-        "members": [uid],
-        "power": 0
+        "members": [uid]
     }
-    return f"🧑‍🤝‍🧑 gang {name} criada"
-
+    return f"🧑‍🤝‍🧑 Gang {name} criada"
 
 def join_party(uid, name):
     if name not in PARTIES:
-        return "❌ não existe"
+        return "❌ gang não existe"
 
     PARTIES[name]["members"].append(uid)
-    return "🚪 entraste na gang"
-
+    return "🚪 Entraste na gang"
 
 # -------------------------
-# GUERRA DE TERRITÓRIOS
+# TERRITORY WAR (FIXED SAFE)
 # -------------------------
 
 def attack_territory(uid, territory):
@@ -184,6 +178,9 @@ def attack_territory(uid, territory):
     if not player_gang:
         return "❌ não estás numa gang"
 
+    if territory not in TERRITORIES:
+        return "❌ território inválido"
+
     power = len(PARTIES[player_gang]["members"]) * random.randint(5, 15)
 
     if TERRITORIES[territory] is None:
@@ -192,14 +189,16 @@ def attack_territory(uid, territory):
 
     enemy = TERRITORIES[territory]
 
-    enemy_power = len(PARTIES.get(enemy, {"members": []})["members"]) * random.randint(5, 15)
+    if enemy not in PARTIES:
+        enemy_power = random.randint(20, 60)
+    else:
+        enemy_power = len(PARTIES[enemy]["members"]) * random.randint(5, 15)
 
     if power > enemy_power:
         TERRITORIES[territory] = player_gang
         return f"⚔️ conquistaste {territory} aos {enemy}"
     else:
         return "💥 falhaste a invasão"
-
 
 # -------------------------
 # CMD
@@ -227,9 +226,8 @@ def cmd():
 🛏️ dormir
 """
 
-
 # -------------------------
-# PROCESSOR
+# MAIN PROCESS
 # -------------------------
 
 def process(uid, text):
@@ -286,8 +284,7 @@ def process(uid, text):
     if "dormir" in t:
         p["day"] += 1
         p["actions"] = 3
-        save(data)
-        return f"🌙 dia {p['day']}"
+        return f"🌙 novo dia"
 
     save(data)
     return "❌ comando inválido (/cmd)"
